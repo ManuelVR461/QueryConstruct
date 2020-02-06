@@ -2,17 +2,16 @@
 Constructor Basico de Querys Basado en la misma metodologia de CodeIgniter para PDO
 
 ## Aplicando:
-
+<pre>
 $db_construc = new DB_model;
-
-> $query = $db_construc->DB_select("p.descripcion as perfil")
->                      ->DB_from("usuarios u")
->                      ->DB_join('perfiles p','t.idperfil = p.id','INNER')
->                      ->DB_join('accesos a','t.idaccesos = a.id','INNER')
->                      ->DB_where('p.id',1)
->                      ->DB_where('u.id','T09','AND')
->                      ->DB_orderby('p.id,p.descripcion','DESC');
-                     
+$query = $db_construc->DB_select('p.descripcion as perfil')
+                     ->DB_from('usuarios u')
+                     ->DB_join('perfiles p','t.idperfil = p.id','INNER')
+                     ->DB_join('accesos a','t.idaccesos = a.id','INNER')
+                     ->DB_where('p.id',1)
+                     ->DB_where('u.id','T09','AND')
+                     ->DB_orderby('p.id,p.descripcion','DESC');
+</pre>                
 
 ## Estructura del Objeto Creado:
 
@@ -59,7 +58,7 @@ DB_model Object
 )
 
 ## Resultado:
-
+<pre>
 SELECT
 p.descripcion as perfil
 FROM usuarios u
@@ -67,6 +66,6 @@ INNER JOIN perfiles p ON t.idperfil=p.id
 INNER JOIN accesos a ON t.idaccesos=a.id
 WHERE p.id=:p.id AND u.id=:u.id
 ORDER BY p.id,p.descripcion DESC
-
+</pre>
 Notas:
 - Por Ahora solo tengo el metodo Select y las partes basicas...
