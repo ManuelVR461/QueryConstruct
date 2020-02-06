@@ -1,7 +1,7 @@
 # QueryConstruct
 Constructor Basico de Querys Basado en la misma metodologia de CodeIgniter para PDO
 
-# Aplicando:
+## Aplicando:
 
 $db_construc = new DB_model;
 
@@ -14,7 +14,7 @@ $query = $db_construc->DB_select("p.descripcion as perfil")
                      ->DB_orderby('p.id,p.descripcion','DESC');
                      
 
-# Estructura del Objeto Creado:
+## Estructura del Objeto Creado:
 
 DB_model Object
 (
@@ -58,7 +58,7 @@ DB_model Object
     [db_offset:protected] => 
 )
 
-# Resultado:
+## Resultado:
 
 SELECT
 p.descripcion as perfil
