@@ -116,7 +116,7 @@ class DB_model {
 			return $this;
         }
         
-        $db_orderby[] = array('field' => $orden, 'direction' => $direccion, 'escape' => FALSE);
+        $db_orderby[] = array('field' => $orden, 'direction' => $direccion);
         $this->db_orderby = array_merge($this->db_orderby, $db_orderby);
         return $this;
     }
@@ -137,21 +137,89 @@ class DB_model {
         if ( !empty($limite)){
 			$this->DB_limit($limite, $hasta);
         }
-        $res = $this->query($this->_compilar_select());
-		$this->_reset_select();
-		return $res;
+        $sql = $this->_compiler('SELECT');
+		//$this->_reset_select();
+		return $sql;
+    }
+
+    public function _compiler($sql){
+        switch ($sql) {
+            case 'SELECT':
+                
+                if (count($this->db_select) === 0){
+                    $sql .= ' * ';
+                }else{
+                    foreach ($this->db_select as $key => $campo){
+                        $this->db_select[$key] = trim($campo);
+                    }
+                    $sql .= "\n".implode(', ', $this->db_select);
+                }
+                
+                if (count($this->db_from) > 0){
+                    $sql .= "\nFROM ".implode(', ', $this->db_from);
+                }
+
+                if (count($this->db_join) > 0){
+                    $sql .= "\n".implode("\n", $this->db_join);
+                }
+
+                if (count($this->db_where) > 0){
+                    $sql .= $this->_where();
+                }
+
+                if (count($this->db_orderby) > 0){
+                    $sql .= $this->_orderby();
+                }
+
+                if ($this->db_limit){
+                    $sql .= $this->db_limit;
+                }
+
+                break;
+            
+            default:
+                # code...
+                break;
+            
+        }
+        return $sql;
+       
+    }
+
+    public function _where(){
+        return "\n".implode(' ',$this->db_where);
+    }
+
+    public function _orderby(){
+        return $sql = "\nORDER BY ".$this->db_orderby[0]['field']
+                     .$this->db_orderby[0]['direction'];
     }
 
 }
-$db_construc = new DB_model;
+$db_construc1 = new DB_model;
+$db_construc2 = new DB_model;
 
-$query = $db_construc->DB_select("p.descripcion as perfil")
+$query1 = $db_construc1->DB_select("p.descripcion as perfil")
                      ->DB_from("usuarios u")
                      ->DB_join('perfiles p','t.idperfil = p.id','INNER')
                      ->DB_join('accesos a','t.idaccesos = a.id','INNER')
                      ->DB_where('p.id',1)
+                     ->DB_where('u.id','T09','AND')
                      ->DB_orderby('p.id,p.descripcion','DESC');
 
+$query2 = $db_construc2->DB_select("p.descripcion as perfil")
+                     ->DB_from("usuarios u")
+                     ->DB_join('perfiles p','t.idperfil = p.id','INNER')
+                     ->DB_join('accesos a','t.idaccesos = a.id','INNER')
+                     ->DB_where('p.id',1)
+                     ->DB_where('u.id','T09','AND')
+                     ->DB_orderby('p.id,p.descripcion','DESC')
+                     ->DB_get();
+
 echo "<pre>";
-print_r($query);
+print_r($query1);
+echo "</pre>";
+
+echo "<pre>";
+print_r($query2);
 echo "</pre>";
