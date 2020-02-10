@@ -13,6 +13,8 @@ class DB_model {
     protected $db_limit= FALSE;
     protected $db_offset= FALSE;
     protected $db_insert= array();
+    protected $db_update= array();
+    protected $db_from_join= array();
 
     public function DB_WhereDataPDO($data){
         foreach ($data as $key => $value) {
@@ -29,6 +31,13 @@ class DB_model {
         $campos = implode(',',array_keys($data));
         $campos = str_replace(",",",:",$campos);
         return ":".$campos;
+    }
+
+    public function getUpdateWhereDataPDO($data){
+        foreach ($data as $key => $value) {
+            $part[]=$key."=:".$key;
+        }
+        return implode(',',array_values($part));
     }
 
     public function DB_select($select = '*'){
@@ -70,7 +79,7 @@ class DB_model {
 				$tipo .= ' ';
 			}
         }
-
+        $this->db_from_join[] = $tabla;
         if(!is_array($condicion)){
             $part = explode("=",$condicion);
             if(count($part)>1){
@@ -97,6 +106,10 @@ class DB_model {
             $this->db_where[] = "WHERE ".$this->DB_WhereDataPDO($campo);
         }
         return $this;
+    }
+
+    public function _where(){
+        return "\n".implode(' ',$this->db_where);
     }
 
     public function DB_group_by($by){
@@ -131,6 +144,11 @@ class DB_model {
         return $this;
     }
 
+    public function _orderby(){
+        return $sql = "\nORDER BY ".$this->db_orderby[0]['field']
+                     .$this->db_orderby[0]['direction'];
+    }
+
     public function DB_limit($valor, $hasta = null){
 		if($valor>0 && !$hasta){
             $limite = 'LIMIT '.$valor;
@@ -138,6 +156,30 @@ class DB_model {
             $limite = 'LIMIT '.$valor.','.$hasta;
         }
 		return $limite;
+    }
+
+
+    public function DB_insert($data=array()){
+        if(count($data)>0){
+            $db_insert[] = array('field' => $this->getKeysArray($data), 
+                                'values' => $this->getKeysArrayPDO($data));
+        }else{
+            $db_insert[] = array('field' => "[field1?,field2?,...]", 
+                               'values' => "[value1?,value2?,...]");
+        }
+        $this->db_insert = array_merge($this->db_insert, $db_insert);
+        return $this;
+    }
+
+    public function DB_update($data=array()){
+        if(count($data)>0){
+            $db_update[] = array('values' => $this->getUpdateWhereDataPDO($data));
+        }else{
+            $db_update[] = array('values' => "[key1:value1?,key2:value2?,...]");
+        }
+        $this->db_update = array_merge($this->db_update, $db_update);
+        return $this;
+
     }
     
     public function DB_get($tabla = '', $limite = NULL, $hasta = NULL){
@@ -148,24 +190,8 @@ class DB_model {
 			$this->DB_limit($limite, $hasta);
         }
         $sql = $this->_compiler('SELECT');
-		#$this->_reset_query();
+		$this->_reset_query();
 		return $sql;
-    }
-
-    public function DB_insert($data=array()){
-
-        if (count($this->db_from) > 0){
-            $db_insert[] = array('field' => $this->getKeysArray($data), 
-                             'values' => $this->getKeysArrayPDO($data));
-            $this->db_insert = array_merge($this->db_insert, $db_insert);
-        }else{
-            $db_insert[] = array('field' => "[field1?,field2?,...]", 
-                             'values' => "[value1?,value2?,...]");
-            $this->db_insert = array_merge($this->db_insert, $db_insert);
-        }
-        
-        return $this;
-
     }
 
     public function DB_set($tabla = ''){
@@ -176,11 +202,40 @@ class DB_model {
         if (count($this->db_from) === 0){
             $this->DB_from('[table?]');
         }
-
         $sql = $this->_compiler('INSERT INTO');
-        #$this->_reset_query();
+        $this->_reset_query();
 		return $sql;
     }
+
+    public function DB_put($tabla = ''){
+        if ($tabla !== ''){			
+			$this->DB_from($tabla);
+        }
+
+        if (count($this->db_from) === 0){
+            $this->DB_from('[table?]');
+        }
+
+        $sql = $this->_compiler('UPDATE');
+        $this->_reset_query();
+		return $sql;
+    }
+
+
+    public function DB_del($tabla = ''){
+        if ($tabla !== ''){			
+			$this->DB_from($tabla);
+        }
+
+        if (count($this->db_from) === 0){
+            $this->DB_from('[table?]');
+        }
+
+        $sql = $this->_compiler('DELETE FROM');
+        $this->_reset_query();
+		return $sql;
+    }
+
 
     public function _compiler($sql){
         switch ($sql) {
@@ -222,15 +277,59 @@ class DB_model {
                     if (count($this->db_from) > 0){
                         $sql .= ' '.$this->db_from[0];
                     }
-                    if (count($this->db_insert) > 1){
-                        foreach ($this->db_insert as $key => $insert) {
-                            $sub[] = $sql.' ('.$insert['field'].') VALUES ('.$insert['values'].');';
-                        }
-                        $sql = $sub;
-                    }else{
-                        $sql = $sql.' ('.$this->db_insert[0]['field'].') VALUES ('.$this->db_insert[0]['values'].');';
+                    foreach ($this->db_insert as $key => $insert) {
+                        $sub[] = $sql.' ('.$insert['field'].') VALUES ('.$insert['values'].');';
                     }
+                    $sql = $sub;
                     break;
+                case 'UPDATE':
+                    $sub=array();
+                    if (count($this->db_from) > 0){
+                        $sql .= ' '.$this->db_from[0];
+                    }                    
+                    foreach ($this->db_update as $key => $update) {
+                            $subsql = $sql.' SET '.$update['values'];
+
+                            if (count($this->db_join) > 0){
+                                $subsql .= ' '.implode(" ", $this->db_join);
+                            }
+
+                            if (count($this->db_where) > 0){
+                                $subsql .= str_replace("\n"," ",$this->_where());
+                            }
+                        $sub[] = $subsql.";";
+                    }
+                    $sql = $sub;
+                    break;
+                case 'DELETE FROM':
+                    if (count($this->db_join) > 0){
+                        $part = explode(' ',$sql);
+                        if (count($this->db_from) > 0){
+                            $tables = array_merge($this->db_from, $this->db_from_join);
+                            $subsql = $part[0].' '.implode(", ", $tables).' '.$part[1];
+                        }
+                        if (count($this->db_join) > 0){
+                            $subsql .= ' '.implode(' ', $this->db_join);
+                        }
+                        if (count($this->db_where) > 0){
+                            $subsql .= str_replace("\n"," ",$this->_where());
+                        }
+                        $sub[] = $subsql;
+                    }else{
+                        if (count($this->db_from) > 0){
+                            foreach ($this->db_from as $key => $delete) {
+                                $subsql = $sql.' '.$delete;
+                                if (count($this->db_where) > 0){
+                                    $subsql .= str_replace("\n"," ",$this->_where());
+                                }
+                                $sub[] = $subsql.";";
+                            }
+                        }else{
+
+                        }
+                    }
+
+                    $sql = $sub;
             default:
                 # code...
                 break;
@@ -240,20 +339,32 @@ class DB_model {
        
     }
 
-    public function _where(){
-        return "\n".implode(' ',$this->db_where);
-    }
-
-    public function _orderby(){
-        return $sql = "\nORDER BY ".$this->db_orderby[0]['field']
-                     .$this->db_orderby[0]['direction'];
+    protected function _reset_query(){
+        $this->db_select    = array();
+        $this->db_from      = array();
+        $this->db_where     = array();
+        $this->db_join      = array();
+        $this->db_groupby   = array();
+        $this->db_orderby   = array();
+        $this->db_limit     = FALSE;
+        $this->db_offset    = FALSE;
+        $this->db_insert    = array();
+        $this->db_update    = array();
+        $this->db_from_join = array();
     }
 
 }
+
+
 $db_construc1 = new DB_model;
 $db_construc2 = new DB_model;
 $db_construc3 = new DB_model;
 
+$data1 = array("usuario"=>"manuel","cargo"=>"administrador","clave"=>'manuel123');
+$data2 = array("usuario"=>"jose","cargo"=>"tecnico","clave"=>'123456');
+$data3 = array("usuario"=>"Pedro","cargo"=>"Chofer","clave"=>'pedritoperez');
+
+// Pruebas Select
 // $query1 = $db_construc1->DB_select("p.descripcion as perfil")
 //                      ->DB_from("usuarios u")
 //                      ->DB_join('perfiles p','t.idperfil = p.id','INNER')
@@ -270,37 +381,58 @@ $db_construc3 = new DB_model;
 //                      ->DB_where('u.id','T09','AND')
 //                      ->DB_orderby('p.id,p.descripcion','DESC')
 //                      ->DB_get();
-// echo "<pre>";
-// print_r($query1);
-// echo "</pre>";
-// echo "<pre>";
-// print_r($query2);
-// echo "</pre>";
 
-$data1 = array("usuario"=>"manuel","cargo"=>"administrador","clave"=>'manuel123');
-$data2 = array("usuario"=>"jose","cargo"=>"tecnico","clave"=>'123456');
-$data3 = array("usuario"=>"Pedro","cargo"=>"Chofer","clave"=>'pedritoperez');
+//////////////Pruebas Insert
 
+// $query1 = $db_construc1->DB_from('usuarios')->DB_insert($data1)->DB_set();
 
-$query1 = $db_construc1->DB_insert($data1)
-                       ->DB_insert($data2)
-                       ->DB_insert($data3)
-                       ->DB_set('usuarios');
+// $query1 = $db_construc2->DB_insert()->DB_set();
 
-$query2 = $db_construc2->DB_insert()->DB_set();
-
-// $query3 = $db_construc3->DB_from('usuarios')
+// $query1 = $db_construc1->DB_from('usuarios')
 //                        ->DB_insert($data1)
 //                        ->DB_insert($data2)
 //                        ->DB_insert($data3)
 //                        ->DB_set();
 
+//////////////Pruebas update
+
+// $query1 = $db_construc1->DB_update($data1)
+//                        ->DB_where('id',1)
+//                        ->DB_put('usuarios');
+
+// $query1 = $db_construc1->DB_update($data1)
+//                        ->DB_update($data2)
+//                        ->DB_update($data3)
+//                        ->DB_where('id',1,"AND")
+//                        ->DB_put('usuarios');
+        
+//////////////Pruebas Delete
+
+// $query1 = $db_construc1->DB_from('usuarios')
+//                        ->DB_from('perfiles')
+//                        ->DB_from('categorias')
+//                        ->DB_where('id',1)
+//                        ->DB_where('u.codigo','T09','AND')
+//                        ->DB_del();
+
+// $query1 = $db_construc1->DB_from('usuarios')
+//                        ->DB_join('perfiles p','t.idperfil = p.id','INNER')
+//                        ->DB_where('id',1)
+//                        ->DB_where('u.id','T09','AND')
+                    //    ->DB_del();
+
+$query1 = $db_construc1->DB_where('id',1)
+                       ->DB_where('u.id','T09','AND')
+                       ->DB_del('usuarios');
+
 echo "<pre>";
 print_r($query1);
 echo "</pre>";
-echo "<pre>";
-print_r($query2);
-echo "</pre>";
-echo "<pre>";
-// print_r($query3);/
-echo "</pre>";
+// echo "<pre>";
+// print_r($query2);
+// echo "</pre>";
+// echo "<pre>";
+// print_r($query3);
+// echo "</pre>";
+
+
