@@ -8,24 +8,30 @@ Sólo intento crear un objeto que permita hacer el CRUD en cualquier aplicacion 
 
 <pre>
 $db_construc = new DB_model;
-$query = $db_construc->DB_select('p.descripcion as perfil')
+a) $query1 = $db_construc->DB_select('p.descripcion as perfil')
                      ->DB_from('usuarios u')
                      ->DB_join('perfiles p','t.idperfil = p.id','INNER')
                      ->DB_join('accesos a','t.idaccesos = a.id','INNER')
                      ->DB_where('p.id',1)
                      ->DB_where('u.id','T09','AND')
                      ->DB_orderby('p.id,p.descripcion','DESC')->DB_get();
+
+ó
+
+b) $query1 = $db_construc1->DB_select()
+                       ->DB_from("usuarios")
+                       ->DB_where('id',2)
+                       ->DB_where('usuario','manuel',"AND")
+                       ->DB_orderby('id,nombres','ASC')->DB_get();
 </pre>                
 
 ## Resultado:
 <pre>
-SELECT
-p.descripcion as perfil
-FROM usuarios u
-INNER JOIN perfiles p ON t.idperfil=p.id
-INNER JOIN accesos a ON t.idaccesos=a.id
-WHERE p.id=:p.id AND u.id=:u.id
-ORDER BY p.id,p.descripcion DESC
+Array
+(
+    [0] => SELECT p.descripcion as perfil FROM usuarios u INNER JOIN perfiles p ON t.idperfil=p.id 
+           INNER JOIN accesos a ON t.idaccesos=a.id WHERE p.id=:p.id AND u.id=:u.id ORDER BY p.id,p.descripcion DESC;
+)
 </pre>
 
 ***Aplicando la solucion para sentencias INSERT:***
@@ -36,7 +42,7 @@ a) CON el uso de DB_from('TABLE') -> se toma como la tabla a INSERTAR los datos 
 
 <pre>
 $data = array("usuario"=>"manuel","cargo"=>"administrador","clave"=>'manuel123');
-$query3 = $db_construc3->DB_from('usuarios')
+$query1 = $db_construc3->DB_from('usuarios')
                        ->DB_insert($data)
                        ->DB_set();
 </pre>
@@ -55,7 +61,7 @@ Array
 $data1 = array("usuario"=>"manuel","cargo"=>"administrador","clave"=>'manuel123');
 $data2 = array("usuario"=>"jose","cargo"=>"tecnico","clave"=>'123456');
 $data3 = array("usuario"=>"Pedro","cargo"=>"Chofer","clave"=>'pedritoperez');
-$query3 = $db_construc3->DB_from('usuarios')
+$query1 = $db_construc3->DB_from('usuarios')
                        ->DB_insert($data1)
                        ->DB_insert($data2)
                        ->DB_insert($data3)
@@ -104,31 +110,6 @@ $query3 = $db_construc3->DB_from('usuarios')
 Array
 (
     [0] => UPDATE usuarios SET usuario=:usuario,cargo=:cargo,clave=:clave WHERE id=:id AND u.codigo=:u.codigo;
-)
-</pre>
-
-***Con varias insert***
-
-<pre>
-$data1 = array("usuario"=>"manuel","cargo"=>"administrador","clave"=>'manuel123');
-$data2 = array("usuario"=>"jose","cargo"=>"tecnico","clave"=>'123456');
-$data3 = array("usuario"=>"Pedro","cargo"=>"Chofer","clave"=>'pedritoperez');
-$query3 = $db_construc3->DB_from('usuarios')
-                       ->DB_update($data1)
-                       ->DB_update($data2)
-                       ->DB_update($data3)
-                       ->DB_where('id',1)
-                       ->DB_where('u.codigo','T09','AND')
-                       ->DB_put();
-</pre>
-
-## Resultado:
-<pre>
-Array
-(
-    [0] => UPDATE usuarios SET usuario=:usuario,cargo=:cargo,clave=:clave WHERE id=:id AND u.codigo=:u.codigo;
-    [1] => UPDATE usuarios SET usuario=:usuario,cargo=:cargo,clave=:clave WHERE id=:id AND u.codigo=:u.codigo;
-    [2] => UPDATE usuarios SET usuario=:usuario,cargo=:cargo,clave=:clave WHERE id=:id AND u.codigo=:u.codigo;
 )
 </pre>
 
@@ -221,3 +202,44 @@ arrojando los mismos resultados anteriores.
 
 Notas:
 - Aun no se le han hecho las validaciones correspondientes, pero todo aquel que quiera aportar se le agradece.
+- Aun la sentencia del con join esta en desarrollo ya que hay que evaluar los alias...
+
+
+La Base de datos de ejemplo probada es:
+
+1) CREATE DATA TABLE 'db_objectmvcx';
+
+2) CREATE TABLE `perfiles` (
+        `id` INT(11) NOT NULL AUTO_INCREMENT,
+        `descripcion` VARCHAR(50) NOT NULL,
+        `accesos_default` TEXT NOT NULL,
+        `status` CHAR(1) NOT NULL DEFAULT 'A',
+        PRIMARY KEY (`id`)
+    )
+    COMMENT='Perfiles de Usuarios'
+    COLLATE='latin1_swedish_ci'
+    ENGINE=InnoDB
+    AUTO_INCREMENT=1;
+
+    INSERT INTO perfiles (id, descripcion, accesos_default, status) VALUES (1, 'Master', '100-500', 'A');
+
+3) CREATE TABLE `usuarios` (
+        `id` INT(11) NOT NULL AUTO_INCREMENT,
+        `usuario` VARCHAR(50) NOT NULL,
+        `pwd` VARCHAR(150) NOT NULL,
+        `nombres` VARCHAR(100) NOT NULL,
+        `email` VARCHAR(50) NOT NULL,
+        `idperfil` INT(11) NOT NULL,
+        `fecha` DATE NOT NULL,
+        `avatar` VARCHAR(50) NOT NULL DEFAULT 'avatar1.png',
+        `accesos` TEXT NOT NULL,
+        `status` CHAR(1) NOT NULL DEFAULT 'A',
+        PRIMARY KEY (`id`),
+        INDEX `idperfil` (`idperfil`)
+    )
+    COMMENT='Tabla Principal de Usuarios'
+    COLLATE='latin1_swedish_ci'
+    ENGINE=InnoDB
+    AUTO_INCREMENT=1;
+    
+    INSERT INTO usuarios (id, usuario, pwd, nombres, email, idperfil, fecha, avatar, accesos, status) VALUES (1, 'admin', '1234', 'Master de Sistemas', 'ManuelVR461@gmail.com', 1, '2019-11-21', 'avatar1.png', '100-500', 'A');

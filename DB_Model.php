@@ -1,6 +1,14 @@
 <?php
+include "Config.php";
 
-class DB_model {
+class DB_model extends Config {
+    /**
+     * Campo de Conexion de DB
+     */
+    protected $cnx;
+    protected $rows = array();
+    protected $data_set = array();
+    protected $data_where = array();
     /**
      * Campos para construccion de consultas
      */
@@ -16,30 +24,83 @@ class DB_model {
     protected $db_update= array();
     protected $db_from_join= array();
 
-    public function DB_WhereDataPDO($data){
-        foreach ($data as $key => $value) {
-            $part[]=$key."=:".$key;
-        }
-        return implode(',',array_values($part));
+    public function __construct(){
+        parent::__construct();
+        $this->cnx = $this->conexion();
     }
 
-    public function getKeysArray($data){
+    protected function conexion(){
+        try {
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_EMULATE_PREPARES => FALSE,
+            ];
+            return new PDO(parent::SGBD,parent::USER,parent::PASS,$options);
+        } catch (PDOException $e) {
+            echo "Error: ".$e;
+            die();
+        }
+    }
+
+    /** Extrae las llaves de un arreglo como una string separado por coma.
+	 * @param Array $data		Arreglo de Datos.
+	 * @return String        Cadena separada por coma
+     */
+    public function DB_getKeysArray($data){
         return implode(',',array_keys($data));
     }
 
-    public function getKeysArrayPDO($data){
+    /** Extrae las llaves de un arreglo como una string separado por coma y : para sentencias preparadas.
+	* @param Array $data		Arreglo de Datos.
+	* @return String        Cadena separada por coma y dos puntos
+    */
+    public function DB_getKeysArrayPDO($data){
         $campos = implode(',',array_keys($data));
         $campos = str_replace(",",",:",$campos);
         return ":".$campos;
     }
 
-    public function getUpdateWhereDataPDO($data){
+    /** Estrae las llaves de un arreglo formateandola llave=:llave para actualizaciones 
+    * con Sentencias preparadas
+	* @param Array $data		Arreglo de Datos.
+    * @return string Cadena con llave=:llave
+    
+    */
+    public function DB_WhereDataPDO($data,$pre=''){
         foreach ($data as $key => $value) {
-            $part[]=$key."=:".$key;
+            $subkey = explode('.',$key);
+            if(count($subkey)>1){
+                $part[]=$key."=:".$pre.$subkey[1];
+            }else{
+                $part[]=$key."=:".$pre.$subkey[0];
+            }
         }
+        
         return implode(',',array_values($part));
     }
 
+    /** actualiza los datos del arreglo con :llave para sentencias preparadas.
+	* @param Array $data		Arreglo de Datos.
+	* @return Array        Arreglo con :llaves
+    */
+    public function _getFormatDataPDO($data,$pre=''){
+        foreach ($data as $key => $value) {
+            $subkey = explode('.',$key);
+            if(count($subkey)>1){
+                $dataout[":".$pre.$subkey[1]]=$value;
+            }else{
+                $dataout[":".$pre.$subkey[0]]=$value;
+            }
+        }
+        return $dataout;
+    }
+
+    /**
+    * Recibe las columnas de los datos separados por coma a extraer para 
+    * construir la consulta select
+    * @param string	$select	'campo1,campo2,campo3,...,campon'
+    * @return Object $this,
+	*/
     public function DB_select($select = '*'){
         if (is_string($select)){
 			$select = explode(',', $select);
@@ -53,9 +114,13 @@ class DB_model {
         return $this;
     }
 
+    /**
+    * Recibe los nombres de las tablas separados por coma a utilizar en las sql
+    * @param string	$select	'tabla1,tabla2,tabla3,...,tablan'
+    * @return Object $this,
+	*/
     public function DB_from($from){
         foreach ((array) $from as $tabla){
-            //strpos — Encuentra la posición de la primera ocurrencia de un substring en un string
             if (strpos($tabla, ',') !== FALSE){
                 foreach (explode(',', $tabla) as $t){
                     $t = trim($t);
@@ -69,6 +134,13 @@ class DB_model {
         return $this;
     }
 
+    /**
+    * Recibe recibe las uniones segun los datos requeridos para crear las sentencias con join
+    * @param string	$tabla	'nombre tabla'
+    * @param string	$consicion	'tabla1.campo=tabla.campo2'
+    * @param string	$tipo	'TIPO DE UNION'
+    * @return Object $this,
+	*/
     public function DB_join($tabla, $condicion, $tipo = ''){
         $part_condicion='';
 
@@ -96,7 +168,6 @@ class DB_model {
     }
 
     public function DB_where($campo, $valor = NULL,$union=null){
-
         if (!is_array($campo)){
 			$campo = array($campo => $valor);
         }
@@ -105,11 +176,12 @@ class DB_model {
         }else{
             $this->db_where[] = "WHERE ".$this->DB_WhereDataPDO($campo);
         }
+        $this->data_where = array_merge($this->data_where, $this->_getFormatDataPDO($campo));
         return $this;
     }
 
     public function _where(){
-        return "\n".implode(' ',$this->db_where);
+        return " ".implode(' ',$this->db_where);
     }
 
     public function DB_group_by($by){
@@ -145,7 +217,7 @@ class DB_model {
     }
 
     public function _orderby(){
-        return $sql = "\nORDER BY ".$this->db_orderby[0]['field']
+        return $sql = " ORDER BY ".$this->db_orderby[0]['field']
                      .$this->db_orderby[0]['direction'];
     }
 
@@ -160,179 +232,132 @@ class DB_model {
 
 
     public function DB_insert($data=array()){
+        $db_data=array();
         if(count($data)>0){
-            $db_insert[] = array('field' => $this->getKeysArray($data), 
-                                'values' => $this->getKeysArrayPDO($data));
+            $db_insert[] = array('field' => $this->DB_getKeysArray($data), 
+                                'values' => $this->DB_getKeysArrayPDO($data));
+            $db_data[] = $this->_getFormatDataPDO($data);
         }else{
             $db_insert[] = array('field' => "[field1?,field2?,...]", 
                                'values' => "[value1?,value2?,...]");
         }
+        
+        $this->data_set = array_merge($this->data_set, $db_data);
         $this->db_insert = array_merge($this->db_insert, $db_insert);
         return $this;
     }
 
     public function DB_update($data=array()){
+        $db_data_set=array();
         if(count($data)>0){
-            $db_update[] = array('values' => $this->getUpdateWhereDataPDO($data));
+            $db_update[] = array('values' => $this->DB_WhereDataPDO($data,'set_'));
+            $db_data_set[] = $this->_getFormatDataPDO($data,'set_');
         }else{
             $db_update[] = array('values' => "[key1:value1?,key2:value2?,...]");
         }
+        $this->data_set = array_merge($this->data_set, $db_data_set);
         $this->db_update = array_merge($this->db_update, $db_update);
         return $this;
 
     }
     
-    public function DB_get($tabla = '', $limite = NULL, $hasta = NULL){
-        if ($tabla !== ''){			
-			$this->DB_from($tabla);
-        }
-        if ( !empty($limite)){
-			$this->DB_limit($limite, $hasta);
-        }
-        $sql = $this->_compiler('SELECT');
-		$this->_reset_query();
-		return $sql;
-    }
-
-    public function DB_set($tabla = ''){
-        if ($tabla !== ''){			
-			$this->DB_from($tabla);
-        }
-
-        if (count($this->db_from) === 0){
-            $this->DB_from('[table?]');
-        }
-        $sql = $this->_compiler('INSERT INTO');
-        $this->_reset_query();
-		return $sql;
-    }
-
-    public function DB_put($tabla = ''){
-        if ($tabla !== ''){			
-			$this->DB_from($tabla);
-        }
-
-        if (count($this->db_from) === 0){
-            $this->DB_from('[table?]');
-        }
-
-        $sql = $this->_compiler('UPDATE');
-        $this->_reset_query();
-		return $sql;
-    }
-
-
-    public function DB_del($tabla = ''){
-        if ($tabla !== ''){			
-			$this->DB_from($tabla);
-        }
-
-        if (count($this->db_from) === 0){
-            $this->DB_from('[table?]');
-        }
-
-        $sql = $this->_compiler('DELETE FROM');
-        $this->_reset_query();
-		return $sql;
-    }
-
-
-    public function _compiler($sql){
+    public function _builder($sql){
+        $sub=array();
+        $subsql='';
         switch ($sql) {
             case 'SELECT':
                 
                 if (count($this->db_select) === 0){
-                    $sql .= ' * ';
+                    $subsql = $sql .= ' * ';
                 }else{
                     foreach ($this->db_select as $key => $campo){
                         $this->db_select[$key] = trim($campo);
                     }
-                    $sql .= "\n".implode(', ', $this->db_select);
+                    $subsql =  $sql ." ".implode(', ', $this->db_select);
                 }
                 
                 if (count($this->db_from) > 0){
-                    $sql .= "\nFROM ".implode(', ', $this->db_from);
+                    $subsql .= " FROM ".implode(', ', $this->db_from);
                 }
-
                 if (count($this->db_join) > 0){
-                    $sql .= "\n".implode("\n", $this->db_join);
+                    $subsql .= " ".implode(" ", $this->db_join);
                 }
 
                 if (count($this->db_where) > 0){
-                    $sql .= $this->_where();
+                    $subsql .= $this->_where();
                 }
 
                 if (count($this->db_orderby) > 0){
-                    $sql .= $this->_orderby();
+                    $subsql .= $this->_orderby();
                 }
 
                 if ($this->db_limit){
-                    $sql .= $this->db_limit;
+                    $subsql .= $this->db_limit;
                 }
 
+                $sql = (array) $subsql;
                 break;
 
-                case 'INSERT INTO':
-                    $sub=array();
-                    if (count($this->db_from) > 0){
-                        $sql .= ' '.$this->db_from[0];
-                    }
-                    foreach ($this->db_insert as $key => $insert) {
-                        $sub[] = $sql.' ('.$insert['field'].') VALUES ('.$insert['values'].');';
-                    }
-                    $sql = $sub;
-                    break;
-                case 'UPDATE':
-                    $sub=array();
-                    if (count($this->db_from) > 0){
-                        $sql .= ' '.$this->db_from[0];
-                    }                    
-                    foreach ($this->db_update as $key => $update) {
-                            $subsql = $sql.' SET '.$update['values'];
+            case 'INSERT INTO':
+                if (count($this->db_from) > 0){
+                    $sql .= ' '.$this->db_from[0];
+                }
+                foreach ($this->db_insert as $key => $insert) {
+                    $sub[] = $sql.' ('.$insert['field'].') VALUES ('.$insert['values'].');';
+                }
+                $sql = $sub;
+                break;
+            case 'UPDATE':
+                if (count($this->db_from) > 0){
+                    $sql .= ' '.$this->db_from[0];
+                }                    
+                foreach ($this->db_update as $key => $update) {
+                        $subsql = $sql.' SET '.$update['values'];
 
-                            if (count($this->db_join) > 0){
-                                $subsql .= ' '.implode(" ", $this->db_join);
-                            }
-
-                            if (count($this->db_where) > 0){
-                                $subsql .= str_replace("\n"," ",$this->_where());
-                            }
-                        $sub[] = $subsql.";";
-                    }
-                    $sql = $sub;
-                    break;
-                case 'DELETE FROM':
-                    if (count($this->db_join) > 0){
-                        $part = explode(' ',$sql);
-                        if (count($this->db_from) > 0){
-                            $tables = array_merge($this->db_from, $this->db_from_join);
-                            $subsql = $part[0].' '.implode(", ", $tables).' '.$part[1];
-                        }
                         if (count($this->db_join) > 0){
-                            $subsql .= ' '.implode(' ', $this->db_join);
+                            $subsql .= ' '.implode(" ", $this->db_join);
                         }
+
                         if (count($this->db_where) > 0){
                             $subsql .= str_replace("\n"," ",$this->_where());
                         }
-                        $sub[] = $subsql;
-                    }else{
-                        if (count($this->db_from) > 0){
-                            foreach ($this->db_from as $key => $delete) {
-                                $subsql = $sql.' '.$delete;
-                                if (count($this->db_where) > 0){
-                                    $subsql .= str_replace("\n"," ",$this->_where());
-                                }
-                                $sub[] = $subsql.";";
-                            }
-                        }else{
-
-                        }
-                    }
-
-                    $sql = $sub;
-            default:
-                # code...
+                    $sub[] = $subsql.";";
+                }
+                $sql = $sub;
                 break;
+            case 'DELETE FROM':
+                if (count($this->db_join) > 0){
+                    $part = explode(' ',$sql);
+                    if (count($this->db_from) > 0){
+                        $tables = array_merge($this->db_from, $this->db_from_join);
+                        $subsql = $part[0].' '.implode(", ", $tables).' '.$part[1].' '.$this->db_from[0];
+                    }
+                    if (count($this->db_join) > 0){
+                        $subsql .= ' '.implode(' ', $this->db_join);
+                    }
+                    if (count($this->db_where) > 0){
+                        $subsql .= str_replace("\n"," ",$this->_where());
+                    }
+                    $sub[] = $subsql;
+                }else{
+                    
+                    if (count($this->db_from) > 0){
+                        foreach ($this->db_from as $key => $delete) {
+                            $subsql = $sql.' '.$delete;
+                            if (count($this->db_where) > 0){
+                                $subsql .= str_replace("\n"," ",$this->_where());
+                            }
+                            $sub[] = $subsql;
+                        }
+                    }else{
+                        return false;
+                    }
+                }
+                $sql = $sub;
+                break;
+        default:
+            # code...
+            break;
             
         }
         return $sql;
@@ -353,6 +378,100 @@ class DB_model {
         $this->db_from_join = array();
     }
 
+    protected function _execute($sql,$where=array(),$type){
+        try {
+            $row=array();
+            $ti = microtime(true);
+            $res = $this->cnx->prepare($sql);
+            $res->execute($where);
+            switch ($type) {
+                case 'SELECT':
+                    $row = $res->fetchALL(PDO::FETCH_ASSOC);
+                    break;
+                case 'INSERT':
+                    $lastid = $this->cnx->lastInsertId();
+                    $row=array("lastid"=>$lastid);
+                    break;
+                case 'UPDATE':
+                    $rowcount = $res->rowCount();
+                    $row=array("rowcount"=>$rowcount);
+                    break;
+                case 'DELETE':
+                    $rowcount = $res->rowCount();
+                    $row=array("rowcount"=>$rowcount);
+                    break;
+            }
+            
+            $res->closeCursor();
+            $tf = microtime(true);
+            return array('error'=>0,'message'=>'success!','data'=>$row);
+        } catch (Exception $e) {
+            return array('error'=>1,'message'=>$e->getMessage());
+        }
+    }
+
+    public function DB_get($tabla = '', $limite = NULL, $hasta = NULL){
+        if ($tabla !== ''){
+			$this->DB_from($tabla);
+        }
+        if ( !empty($limite)){
+			$this->DB_limit($limite, $hasta);
+        }
+        $sql = $this->_builder('SELECT');
+        foreach ($sql as $key => $query) {
+            $res = $this->_execute($query,$this->data_where,'SELECT');
+        }
+		return $res;
+    }
+
+    public function DB_set($tabla = ''){
+        if ($tabla !== ''){			
+			$this->DB_from($tabla);
+        }
+        if (count($this->db_from) === 0){
+            $this->DB_from('[table?]');
+        }
+        $sql = $this->_builder('INSERT INTO');
+        foreach ($sql as $key => $query) {
+            $res = $this->_execute($query,$this->data_set[$key],'INSERT');
+        }
+        $this->_reset_query();
+		return $res;
+    }
+
+    public function DB_put($tabla = ''){
+        if ($tabla !== ''){			
+			$this->DB_from($tabla);
+        }
+        if (count($this->db_from) === 0){
+            $this->DB_from('[table?]');
+        }
+        $sql = $this->_builder('UPDATE');
+        $data_set = array_merge($this->data_set[0], $this->data_where);
+        foreach ($sql as $key => $query) {
+            $res = $this->_execute($query,$data_set,'UPDATE');
+        }
+        $this->_reset_query();
+		return $res;
+    }
+
+
+    public function DB_del($tabla = ''){
+        if ($tabla !== ''){			
+			$this->DB_from($tabla);
+        }
+        if (count($this->db_from) === 0){
+            $this->DB_from('[table?]');
+        }
+        $sql = $this->_builder('DELETE FROM');
+        
+        foreach ($sql as $key => $query) {
+            $res = $this->_execute($query,$this->data_where,'DELETE');
+        }
+        $this->_reset_query();
+		return $res;
+    }
+
 }
 
 
@@ -360,70 +479,60 @@ $db_construc1 = new DB_model;
 $db_construc2 = new DB_model;
 $db_construc3 = new DB_model;
 
-$data1 = array("usuario"=>"manuel","cargo"=>"administrador","clave"=>'manuel123');
-$data2 = array("usuario"=>"jose","cargo"=>"tecnico","clave"=>'123456');
-$data3 = array("usuario"=>"Pedro","cargo"=>"Chofer","clave"=>'pedritoperez');
 
-// Pruebas Select
-// $query1 = $db_construc1->DB_select("p.descripcion as perfil")
-//                      ->DB_from("usuarios u")
-//                      ->DB_join('perfiles p','t.idperfil = p.id','INNER')
-//                      ->DB_join('accesos a','t.idaccesos = a.id','INNER')
-//                      ->DB_where('p.id',1)
-//                      ->DB_where('u.id','T09','AND')
-//                      ->DB_orderby('p.id,p.descripcion','DESC');
+$query1 = $db_construc1->DB_select()
+                       ->DB_from("usuarios")
+                       ->DB_where('id',2)
+                       ->DB_where('usuario','manuel',"AND")
+                       ->DB_orderby('id,nombres','ASC')->DB_get();
 
-// $query2 = $db_construc2->DB_select("p.descripcion as perfil")
-//                      ->DB_from("usuarios u")
-//                      ->DB_join('perfiles p','t.idperfil = p.id','INNER')
-//                      ->DB_join('accesos a','t.idaccesos = a.id','INNER')
-//                      ->DB_where('p.id',1)
-//                      ->DB_where('u.id','T09','AND')
-//                      ->DB_orderby('p.id,p.descripcion','DESC')
-//                      ->DB_get();
 
-//////////////Pruebas Insert
+// $data1 = array("usuario"=>"JuanOrtiz",
+//                "nombres"=>"Juan Ortiz",
+//                "pwd"=>"1234",
+//                "email"=>'juan123@gmail.com',
+//                 "idperfil"=>1,
+//                 "fecha"=>date("Y-m-d"),
+//                 "accesos"=>"(100-500)");
+// $data2 = array("usuario"=>"ReguloM",
+//                 "nombres"=>"Regulo Marques",
+//                 "pwd"=>"1234",
+//                 "email"=>'regulom123@gmail.com',
+//                 "idperfil"=>1,
+//                 "fecha"=>date("Y-m-d"),
+//                 "accesos"=>"(100-500)");
 
-// $query1 = $db_construc1->DB_from('usuarios')->DB_insert($data1)->DB_set();
+// $query1 = $db_construc1->DB_from('usuarios')->DB_insert($data1)->DB_insert($data2)->DB_set();
 
-// $query1 = $db_construc2->DB_insert()->DB_set();
 
-// $query1 = $db_construc1->DB_from('usuarios')
-//                        ->DB_insert($data1)
-//                        ->DB_insert($data2)
-//                        ->DB_insert($data3)
-//                        ->DB_set();
-
-//////////////Pruebas update
+// $data1 = array("usuario"=>"MLuis",
+//                "pwd"=>"1324",
+//                "nombres"=>"Luis Miguel",
+//                "email"=>'luis134@gmail.com',
+//                "accesos"=>"(100-400-500)");
 
 // $query1 = $db_construc1->DB_update($data1)
-//                        ->DB_where('id',1)
-//                        ->DB_put('usuarios');
+//                        ->DB_where('id',6)
+//                        ->DB_where('usuario','mluis',"AND")
+//                        ->DB_from("usuarios")->DB_put();
+
+// $data1 = array("pwd"=>"132456");
 
 // $query1 = $db_construc1->DB_update($data1)
-//                        ->DB_update($data2)
-//                        ->DB_update($data3)
-//                        ->DB_where('id',1,"AND")
-//                        ->DB_put('usuarios');
-        
-//////////////Pruebas Delete
+//                        ->DB_where('id',8)
+//                        ->DB_from("usuarios")->DB_put();
+
 
 // $query1 = $db_construc1->DB_from('usuarios')
 //                        ->DB_from('perfiles')
-//                        ->DB_from('categorias')
-//                        ->DB_where('id',1)
-//                        ->DB_where('u.codigo','T09','AND')
+//                        ->DB_where('id',10)->DB_del();
+
+// $query1 = $db_construc1->DB_from('usuarios u')
+//                        ->DB_join('perfiles p','u.idperfil = p.id','INNER')
+//                        ->DB_where('p.id',10)
+//                        ->DB_where('u.usuario','JorgeG','AND')
 //                        ->DB_del();
 
-// $query1 = $db_construc1->DB_from('usuarios')
-//                        ->DB_join('perfiles p','t.idperfil = p.id','INNER')
-//                        ->DB_where('id',1)
-//                        ->DB_where('u.id','T09','AND')
-                    //    ->DB_del();
-
-$query1 = $db_construc1->DB_where('id',1)
-                       ->DB_where('u.id','T09','AND')
-                       ->DB_del('usuarios');
 
 echo "<pre>";
 print_r($query1);
