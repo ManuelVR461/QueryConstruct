@@ -64,7 +64,6 @@ class DB_model extends Config {
     * con Sentencias preparadas
     * @param Array $data        Arreglo de Datos.
     * @return string Cadena con llave=:llave
-    
     */
     public function DB_WhereDataPDO($data,$pre=''){
         foreach ($data as $key => $value) {
@@ -75,7 +74,7 @@ class DB_model extends Config {
                 $part[]=$key."=:".$pre.$subkey[0];
             }
         }
-        
+
         return implode(',',array_values($part));
     }
 
@@ -83,7 +82,6 @@ class DB_model extends Config {
     * con Sentencias preparadas
     * @param Array $data        Arreglo de Datos.
     * @return string Cadena con llave=:llave
-    
     */
     public function DB_NotWhereDataPDO($data,$pre=''){
         foreach ($data as $key => $value) {
@@ -94,7 +92,6 @@ class DB_model extends Config {
                 $part[]=$key."!=:".$pre.$subkey[0];
             }
         }
-        
         return implode(',',array_values($part));
     }
 
@@ -115,7 +112,7 @@ class DB_model extends Config {
     }
 
     /**
-    * Recibe las columnas de los datos separados por coma a extraer para 
+    * Recibe las columnas de los datos separados por coma a extraer para
     * construir la consulta select
     * @param string	$select	'campo1,campo2,campo3,...,campon'
     * @return Object $this,
@@ -226,6 +223,23 @@ class DB_model extends Config {
         return $this;
     }
 
+    public function DB_between($expresion, $minimo, $maximo, $not = FALSE){
+        if((gettype($minimo) == gettype($maximo)) && ($minimo <= $maximo)){
+            if($not){
+                $this->db_where[] = 'NOT :'.$expresion.' BETWEEN (:'.$minimo.' AND :'.$maximo.')';
+            }else{
+                $this->db_where[] = $expresion.' BETWEEN '.$minimo.' AND '.$maximo;
+            }
+        }
+        $campo = array(
+            'expresion' => $expresion,
+            'minimo'    => $minimo,
+            'maximo'    => $maximo
+        );
+        $this->data_where = array_merge($this->data_where, $this->_getFormatDataPDO($campo));
+        return $this;
+    }
+
     public function _where(){
         return " ".implode(' ',$this->db_where);
     }
@@ -260,15 +274,15 @@ class DB_model extends Config {
     */
     public function DB_orderby($orden='id', $direccion = 'ASC'){
         $direccion = strtoupper(trim($direccion));
-        
+
         if ($direccion !== ''){
 			$direccion = in_array($direccion, array('ASC', 'DESC'), TRUE) ? ' '.$direccion : '';
         }
-        
+
 		if (empty($orden)){
 			return $this;
         }
-        
+
         $db_orderby[] = array('field' => $orden, 'direction' => $direccion);
         $this->db_orderby = array_merge($this->db_orderby, $db_orderby);
         return $this;
@@ -286,7 +300,7 @@ class DB_model extends Config {
     * @return Object $this,
     */
     public function DB_limit($valor, $hasta = null){
-		if($valor>0 && !$hasta){
+    	if($valor>0 && !$hasta){
             $limite = ' LIMIT '.$valor;
         }else{
             $limite = ' LIMIT '.$valor.','.$hasta;
@@ -295,18 +309,16 @@ class DB_model extends Config {
         return $this;
     }
 
-
     public function DB_insert($data=array()){
         $db_data=array();
         if(count($data)>0){
-            $db_insert[] = array('field' => $this->DB_getKeysArray($data), 
+            $db_insert[] = array('field' => $this->DB_getKeysArray($data),
                                 'values' => $this->DB_getKeysArrayPDO($data));
             $db_data[] = $this->_getFormatDataPDO($data);
         }else{
-            $db_insert[] = array('field' => "[field1?,field2?,...]", 
+            $db_insert[] = array('field' => "[field1?,field2?,...]",
                                'values' => "[value1?,value2?,...]");
         }
-        
         $this->data_set = array_merge($this->data_set, $db_data);
         $this->db_insert = array_merge($this->db_insert, $db_insert);
         return $this;
@@ -325,13 +337,12 @@ class DB_model extends Config {
         return $this;
 
     }
-    
+
     public function _builder($sql){
         $sub=array();
         $subsql='';
         switch ($sql) {
             case 'SELECT':
-                
                 if (count($this->db_select) === 0){
                     $subsql = $sql .= ' * ';
                 }else{
@@ -340,7 +351,6 @@ class DB_model extends Config {
                     }
                     $subsql =  $sql ." ".implode(', ', $this->db_select);
                 }
-                
                 if (count($this->db_from) > 0){
                     $subsql .= " FROM ".implode(', ', $this->db_from);
                 }
@@ -351,7 +361,6 @@ class DB_model extends Config {
                 if (count($this->db_where) > 0){
                     $subsql .= $this->_where();
                 }
-
                 if (count($this->db_groupby) > 0){
                     $subsql .= $this->_groupby();
                 }
@@ -379,7 +388,7 @@ class DB_model extends Config {
             case 'UPDATE':
                 if (count($this->db_from) > 0){
                     $sql .= ' '.$this->db_from[0];
-                }                    
+                }
                 foreach ($this->db_update as $key => $update) {
                         $subsql = $sql.' SET '.$update['values'];
 
@@ -409,7 +418,6 @@ class DB_model extends Config {
                     }
                     $sub[] = $subsql;
                 }else{
-                    
                     if (count($this->db_from) > 0){
                         foreach ($this->db_from as $key => $delete) {
                             $subsql = $sql.' '.$delete;
@@ -427,10 +435,8 @@ class DB_model extends Config {
         default:
             # code...
             break;
-            
         }
         return $sql;
-       
     }
 
     protected function _reset_query(){
@@ -473,7 +479,6 @@ class DB_model extends Config {
                     $row = $res->fetchALL(PDO::FETCH_ASSOC);
                     break;
             }
-            
             $res->closeCursor();
             $tf = microtime(true);
             return array('error'=>0,'message'=>'success!','data'=>$row);
@@ -549,7 +554,7 @@ class DB_model extends Config {
             $this->DB_from('[table?]');
         }
         $sql = $this->_builder('DELETE FROM');
-        
+
         foreach ($sql as $key => $query) {
             if (strtolower($tabla) !== 'not'){
                 $res = $this->_execute($query,$this->data_where,'DELETE');
@@ -641,5 +646,3 @@ echo "</pre>";
 // echo "<pre>";
 // print_r($query3);
 // echo "</pre>";
-
-
