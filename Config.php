@@ -1,7 +1,7 @@
 <?php
 class Config{
-    const APP_VERSION = '0.005'; //Version de la Aplicacion
-    const APP_DATE_VERSION = '11-02-2020';
+    const APP_VERSION = '0.006'; //Version de la Aplicacion
+    const APP_DATE_VERSION = '12-02-2020';
     const APP_DEVELOPER= 'Ing. Manuel Ramirez (ManuelVR461@gmail.com)';
     
     const APP="ObjectMVCX"; //Nombre del Proyecto
