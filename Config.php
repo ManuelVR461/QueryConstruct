@@ -1,6 +1,6 @@
 <?php
 class Config{
-    const APP_VERSION = '0.007'; //Version de la Aplicacion
+    const APP_VERSION = '0.008'; //Version de la Aplicacion
     const APP_DATE_VERSION = '12-02-2020';
     const APP_DEVELOPER= 'Ing. Manuel Ramirez (ManuelVR461@gmail.com)';
 

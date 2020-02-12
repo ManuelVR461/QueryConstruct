@@ -60,7 +60,7 @@ class DB_model extends Config {
         return ":".$campos;
     }
 
-    /** Estrae las llaves de un arreglo formateandola en llave=:llave para actualizaciones 
+    /** Estrae las llaves de un arreglo formateandola en llave=:llave para actualizaciones
     * con Sentencias preparadas
     * @param Array $data        Arreglo de Datos.
     * @return string Cadena con llave=:llave
@@ -78,7 +78,7 @@ class DB_model extends Config {
         return implode(',',array_values($part));
     }
 
-    /** Estrae las llaves de un arreglo formateandola en llave!=:llave para actualizaciones 
+    /** Estrae las llaves de un arreglo formateandola en llave!=:llave para actualizaciones
     * con Sentencias preparadas
     * @param Array $data        Arreglo de Datos.
     * @return string Cadena con llave=:llave
@@ -223,18 +223,43 @@ class DB_model extends Config {
         return $this;
     }
 
-    public function DB_between($expresion, $minimo, $maximo, $not = FALSE){
+    /**
+    * Recibe recibe las datos para la comparacion no igual a.
+    * @param string $expresion  'nombre campo'
+    * @param string $minimo a comparar
+    * @param string $maximo a comparar
+    * @param string $union   'AND,OR' (opcional)
+    * @return Object $this,
+    */
+    public function DB_between($expresion, $minimo, $maximo, $union = FALSE){
         if((gettype($minimo) == gettype($maximo)) && ($minimo <= $maximo)){
-            if($not){
-                $this->db_where[] = 'NOT :'.$expresion.' BETWEEN (:'.$minimo.' AND :'.$maximo.')';
+            if($union){
+                $this->db_where[] = $union.' :expresion BETWEEN (:minimo AND :maximo)';
             }else{
-                $this->db_where[] = $expresion.' BETWEEN '.$minimo.' AND '.$maximo;
+                $this->db_where[] = 'WHERE :expresion BETWEEN (:minimo AND :maximo)';
             }
         }
         $campo = array(
             'expresion' => $expresion,
             'minimo'    => $minimo,
             'maximo'    => $maximo
+        );
+        $this->data_where = array_merge($this->data_where, $this->_getFormatDataPDO($campo));
+        return $this;
+    }
+
+    public function DB_notbetween($expresion, $minimo, $maximo, $union = FALSE){
+        if((gettype($minimo) == gettype($maximo)) && ($minimo <= $maximo)){
+            if($union){
+                $this->db_where[] = $union.' :expresion NOT BETWEEN (:minimo AND :maximo)';
+            }else{
+                $this->db_where[] = 'WHERE :expresion NOT BETWEEN (:minimo AND :maximo)';
+            }
+        }
+        $campo = array(
+            ':expresion' => $expresion,
+            ':minimo'    => $minimo,
+            ':maximo'    => $maximo
         );
         $this->data_where = array_merge($this->data_where, $this->_getFormatDataPDO($campo));
         return $this;
@@ -265,7 +290,7 @@ class DB_model extends Config {
     public function _groupby(){
         return $sql = " GROUP BY ".implode(',',$this->db_groupby);
     }
-    
+
     /**
     * Recibe recibe los campos separados por coma para ordenar el resultado
     * @param string $orden  'campo1,campo2,campo3'
@@ -507,7 +532,7 @@ class DB_model extends Config {
     }
 
     public function DB_set($tabla = ''){
-        if ($tabla !== '' && strtolower($tabla) !== 'not'){     
+        if ($tabla !== '' && strtolower($tabla) !== 'not'){
             $this->DB_from($tabla);
         }
         if (count($this->db_from) === 0){
@@ -526,7 +551,7 @@ class DB_model extends Config {
     }
 
     public function DB_put($tabla = ''){
-        if ($tabla !== '' && strtolower($tabla) !== 'not'){     
+        if ($tabla !== '' && strtolower($tabla) !== 'not'){
             $this->DB_from($tabla);
         }
         if (count($this->db_from) === 0){
@@ -547,7 +572,7 @@ class DB_model extends Config {
 
 
     public function DB_del($tabla = ''){
-        if ($tabla !== '' && strtolower($tabla) !== 'not'){ 
+        if ($tabla !== '' && strtolower($tabla) !== 'not'){
             $this->DB_from($tabla);
         }
         if (count($this->db_from) === 0){
@@ -584,7 +609,7 @@ $db_construc3 = new DB_model;
 $query1 = $db_construc1->DB_select()
                        ->DB_from("usuarios")
                        ->DB_where('id',2)
-                       ->DB_notwhere('usuario','manuel',"AND")
+                       ->DB_where('usuario','manuel',"AND")
                        ->DB_orderby('id,nombres','ASC')
                        ->DB_groupby('nombres')
                        ->DB_get('not');
